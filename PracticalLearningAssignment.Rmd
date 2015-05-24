@@ -1,0 +1,109 @@
+---
+title: "Practical Machine Learning Assignment"
+author: "Gary Clark"
+date: "Saturday, May 23, 2015"
+output: html_document
+---
+
+#Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+The Goal of this assignment is to predict the manner in which they did the exercise.This is the "classe" variable in the training set.
+
+#Data
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+#Load necessary libraries
+
+```{r}
+library(caret)
+library(randomForest)
+```
+
+#Loading and filtering the Data
+
+First load the data and look at the dimensions
+```{r}
+training <- read.csv("pml-training.csv", na.strings=c("", "NA", "NULL"))
+testing <- read.csv("pml-testing.csv", na.strings=c("", "NA", "NULL"))
+dim(training)
+dim(testing)
+```
+
+
+Get rid of any column that only has NAs
+```{r}
+training <- training[ , colSums(is.na(training)) == 0]
+testing <- testing[ , colSums(is.na(testing)) == 0]
+dim(training)
+dim(testing)
+```
+
+We have gone down from 160 to 60 columns
+
+Now we get rid of the first 6 columns ("X","user_name","raw_timestamp_part_1","raw_timestamp_part_2","cvtd_timestamp","new_window") as their value doesn't change and they would skew the results. Leaving them in resulted in getting only one result predicted every time.
+
+```{r}
+training <- training[, c(7:60)]
+testing <- testing[, c(7:60)]
+dim(training); dim(testing)
+````
+
+#Spliting the Data for Cross Validation
+
+Here we will split the data to use for training and testing using the usual 70-30 split using the createDataPartition function from the Caret library
+
+```{r}
+inTrain <- createDataPartition(y = training$classe, p=0.70, list=FALSE)
+train <- training[inTrain,]
+test <- training[-inTrain,]
+dim(train) 
+dim(test)
+```
+
+#Building a Model
+
+First lets try going for Random forests as it will possibly give the best results for complex models. We use the train method from caret and pass "rf" so it knows to try random forest. I am adding trControl to control how the data is resampled and I chose cross validation and am doing it 5 times. We will also try using rpart (Recursive Partitioning and Regression Trees) with the default settings just to see how accurate other methods are.
+
+
+```{r}
+model <- train(classe ~., data = train, method = "rf",tuneLength = 3,
+               trControl = trainControl(method = "cv", number = 5))
+model2 <- train(classe ~., data = train, method = "rpart")
+```
+
+```{r}
+print (model)
+print (model2)
+````
+
+We see ```Accuracy : 0.9971609``` for Random Forests. I doubt anything would be able to get substantialy better so we stop here trying other methods.
+
+#Testing the model
+
+Just to be sure now we test this model against the 30% of the data we left in the test variable. We expect it to be about the same accuracy as we found looking at the models details.
+
+```{r}
+testpredictions <- predict(model, test)
+confusionMatrix(testpredictions, test$classe)
+````
+
+With ````Accuracy : 0.9964```` we are satisfied we picked the correct model and move to prediction.
+
+#Prediction
+
+Now we predict the final values against the testing data.
+
+```{r}
+finaltest <- predict(model, testing)
+finaltest <- as.character(finaltest)
+finaltest
+```
